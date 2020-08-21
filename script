@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+    
+
+ 	
+
+    stages {
+       
+        stage ('Install') {
+         steps {
+            withCredentials([file(credentialsId: 'composer_repo', variable: 'FILE')]) {
+               
+                    sh 'cp $FILE ./'
+                    sh "composer update -vvv"
+        	        sh "composer install -vvv"
+        	   
+            }
+        }
+        }
+        stage ('Magento Standards') {
+		steps {
+        	sh "vendor/bin/phpcs --standard=vendor/magento/magento-coding-standard/Magento2 --extensions=php --report-file=checkstyle.xml app/code/I95DevConnect -v || exit 0"
+        }}
+        stage ('Sonar Scan'){
+        steps {
+            sh "/var/lib/jenkins/tools/hudson.plugins.sonar.SonarRunnerInstallation/sonar-scanner-4.3/bin/sonar-scanner"
+        }}
+	stage ('Psalm Scan'){
+        steps {
+            sh "vendor/bin/psalm"
+        }}
+        stage ('Tests') {
+        steps {
+            sh "echo 'shell scripts to create DB and settings for integration tests'"
+	        
+        }}
+        
+    } 
+    
+    environment {
+        EMAIL_TO = 'jitendra.chandani@jivainfotech.com'
+    }
+    post {
+        success {
+            emailext body: 'Check console output at $BUILD_URL to view the results. \n\n ${CHANGES} \n\n -------------------------------------------------- \n${BUILD_LOG, maxLines=100, escapeHtml=false}', 
+                    to: "${EMAIL_TO}", 
+                    subject: 'Build success in Jenkins: $PROJECT_NAME - #$BUILD_NUMBER'
+        }
+        failure {
+            emailext body: 'Check console output at $BUILD_URL to view the results. \n\n ${CHANGES} \n\n -------------------------------------------------- \n${BUILD_LOG, maxLines=100, escapeHtml=false}', 
+                    to: "${EMAIL_TO}", 
+                    subject: 'Build failed in Jenkins: $PROJECT_NAME - #$BUILD_NUMBER'
+        }
+        unstable {
+            emailext body: 'Check console output at $BUILD_URL to view the results. \n\n ${CHANGES} \n\n -------------------------------------------------- \n${BUILD_LOG, maxLines=100, escapeHtml=false}', 
+                    to: "${EMAIL_TO}", 
+                    subject: 'Unstable build in Jenkins: $PROJECT_NAME - #$BUILD_NUMBER'
+        }
+        changed {
+            emailext body: 'Check console output at $BUILD_URL to view the results.', 
+                    to: "${EMAIL_TO}", 
+                    subject: 'Jenkins build is back to normal: $PROJECT_NAME - #$BUILD_NUMBER'
+        }
+    }
+}
